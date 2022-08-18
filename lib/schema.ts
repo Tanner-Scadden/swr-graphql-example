@@ -6,12 +6,12 @@ const typeDefs = /* GraphQL */ `
   }
 
   type Query {
-    viewer: User!
+    users: [User!]!
   }
 
   type Mutation {
     updateName(name: String!): User!
   }
-`
+`;
 
-export default typeDefs
+export default typeDefs;

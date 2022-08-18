@@ -1,75 +1,40 @@
-import { useMutation, useQuery } from '@apollo/client'
-import { UpdateNameDocument, ViewerDocument } from 'lib/graphql-operations'
-import Link from 'next/link'
-import { useState } from 'react'
-import { initializeApollo } from '../lib/apollo'
+import { appClient } from "lib/appClient";
+import useUsers, { usersQueryBuilder } from "hooks/useUsers";
+import { SWRConfig, unstable_serialize } from "swr";
 
-const Index = () => {
-  const { data } = useQuery(ViewerDocument)
-  const [newName, setNewName] = useState('')
-  const [updateNameMutation] = useMutation(UpdateNameDocument)
+const Home = () => {
+  const { users } = useUsers();
 
-  const onChangeName = () => {
-    updateNameMutation({
-      variables: {
-        name: newName,
-      },
-      // Follow apollo suggestion to update cache
-      //  https://www.apollographql.com/docs/angular/features/cache-updates/#update
-      update: (cache, mutationResult) => {
-        const { data } = mutationResult
-        if (!data) return // Cancel updating name in cache if no data is returned from mutation.
-        // Read the data from our cache for this query.
-        const result = cache.readQuery({
-          query: ViewerDocument,
-        })
-        const newViewer = result ? { ...result.viewer } : null
-        // Add our comment from the mutation to the end.
-        // Write our data back to the cache.
-        if (newViewer) {
-          newViewer.name = data.updateName.name
-          cache.writeQuery({
-            query: ViewerDocument,
-            data: { viewer: newViewer },
-          })
-        }
-      },
-    })
-  }
+  return (
+    <ul>
+      {users.map((user) => (
+        <li key={user.id}>
+          {user.name}: {user.status}
+        </li>
+      ))}
+    </ul>
+  );
+};
+const HomePage = ({ fallback }) => {
+  return (
+    <SWRConfig value={{ fallback }}>
+      <Home />
+    </SWRConfig>
+  );
+};
 
-  const viewer = data?.viewer
+export async function getServerSideProps() {
+  const usersQuery = usersQueryBuilder();
 
-  return viewer ? (
-    <div>
-      You're signed in as {viewer.name} and you're {viewer.status}. Go to the{' '}
-      <Link href="/about">
-        <a>about</a>
-      </Link>{' '}
-      page.
-      <div>
-        <input
-          type="text"
-          placeholder="your new name..."
-          onChange={(e) => setNewName(e.target.value)}
-        />
-        <input type="button" value="change" onClick={onChangeName} />
-      </div>
-    </div>
-  ) : null
-}
-
-export async function getStaticProps() {
-  const apolloClient = initializeApollo()
-
-  await apolloClient.query({
-    query: ViewerDocument,
-  })
+  const users = await appClient(usersQuery, {});
 
   return {
     props: {
-      initialApolloState: apolloClient.cache.extract(),
+      fallback: {
+        [unstable_serialize([usersQuery])]: users,
+      },
     },
-  }
+  };
 }
 
-export default Index
+export default HomePage;
